@@ -171,7 +171,7 @@ class Desktop:
         times = [t for t, x, y, w, h in self.rfb.dirty if t > since and not self._is_cursor_rect(x, y, w, h)]
         return max(times, default=0.0)
 
-    async def wait_stable(self, quiet: float = 0.4, no_change: float = 2.0, timeout: float = 5.0) -> bool:
+    async def wait_stable(self, quiet: float = 0.3, no_change: float = 2.0, timeout: float = 5.0) -> bool:
         """Wait until the screen settles after the last action.
 
         Returns True if app content changed since the action, False if nothing

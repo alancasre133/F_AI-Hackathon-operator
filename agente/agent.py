@@ -17,9 +17,9 @@ from .prompts import PLAN_SYSTEM, STEP_SYSTEM
 
 log = logging.getLogger("agente")
 
-TASK_BUDGET = 270  # seconds of work; the evaluator stops polling at 300
-HARD_LIMIT = 290
-FINISH_MARGIN = 25  # below this many seconds left, wrap up
+TASK_BUDGET = 280  # seconds of work; the evaluator stops polling at 300
+HARD_LIMIT = 292
+FINISH_MARGIN = 22  # below this many seconds left, give a verdict from what is on screen
 
 
 @dataclass
@@ -87,6 +87,7 @@ class Agent:
         self.desk = await Desktop.connect(self.url, self.password)
         await self.desk.wait_stable(no_change=0.6)
         screen = await self._see()
+        screen = await self._dismiss_startup_notice(screen)
         self.app = fingerprint(screen)
         self.knowledge = memory_describe(self.app)
         intent = self.intent = await self._plan(screen)
@@ -98,7 +99,7 @@ class Agent:
         while True:
             step += 1
             if self._remaining() < FINISH_MARGIN:
-                return {"estado": "fallida", "resumen": "Se agotó el tiempo de la tarea sin poder verificar el resultado.", "razones": self._progress()}
+                return await self._verdict(screen, intent)
             decision = await self._decide(screen, intent, step)
             actions = decision.get("acciones") or []
             declared = str(decision.get("accion_importante") or "").strip().lower()
@@ -166,6 +167,51 @@ class Agent:
         )
         model = MODEL_SMART if self._needs_smart() else MODEL_FAST
         return await self.llm.json(STEP_SYSTEM, [{"type": "text", "text": text}, image_part(screen.annotated)], model=model)
+
+    NEUTRAL = {"entendido", "cerrar", "omitir", "ahora no", "mas tarde", "cancelar", "no gracias", "x", "×", "continuar sin cambios"}
+
+    async def _dismiss_startup_notice(self, screen: Screen) -> Screen:
+        """A notice open before we did anything (e.g. "Novedades de la versión 4.2") is not part of the task:
+        close it in code with its neutral button, saving the LLM steps. Never "Aceptar"/"Actualizar"."""
+        for _ in range(2):
+            hits = [e for e in screen.elements if fold(e.text).strip(" []()") in self.NEUTRAL]
+            if not hits:
+                return screen
+            el = max(hits, key=lambda e: e.y1)  # the dialog's button row sits below its text
+            await self.desk.click(*el.center)
+            changed = await self.desk.wait_stable()
+            if not changed:
+                await self.desk.key("esc")
+                await self.desk.wait_stable()
+            self._note(f"aviso inicial cerrado con '{el.text}'")
+            screen = await self._see()
+        return screen
+
+    async def _verdict(self, screen: Screen, intent: dict) -> dict:
+        """Out of time: judge from the screen and history instead of failing blindly.
+
+        Often the work is done (saved, exported, counted) and only the final check was missing."""
+        hist = "\n".join(self.history[-20:])
+        text = (
+            f"TAREA: {self.tarea}\nPLAN: {json.dumps(intent, ensure_ascii=False)}\nHISTORIAL:\n{hist}\n"
+            f"Filas acumuladas con leer_tabla: {len(self.rows.rows)}\n\nELEMENTOS:\n{screen.listing()}\n\n"
+            "SE ACABÓ EL TIEMPO: ya no puedes actuar. Decide el resultado con lo que ves y el historial. "
+            "\"terminada\" SOLO si la pantalla o el historial muestran evidencia de que lo pedido quedó hecho "
+            "(mensaje de guardado/exportado, registro con los valores pedidos) o, en una pregunta, si ya tienes el dato completo (en un conteo, solo si leíste TODAS las páginas). "
+            "Si no hay evidencia, \"fallida\" con las razones. Responde SOLO con la acción terminar en JSON: "
+            '{"a":"terminar","estado":"...","resumen":"...","respuesta":"... o null","razones":[...]}'
+        )
+        try:
+            act = await asyncio.wait_for(
+                self.llm.json(STEP_SYSTEM, [{"type": "text", "text": text}, image_part(screen.annotated)], model=MODEL_FAST, max_tokens=600),
+                timeout=max(5.0, self._remaining() + 12),
+            )
+            if act.get("a") == "terminar" or "estado" in act:
+                self._note(f"veredicto por tiempo: {act.get('estado')}")
+                return act
+        except Exception as exc:
+            log.warning("verdict failed: %s", exc)
+        return {"estado": "fallida", "resumen": "Se agotó el tiempo de la tarea sin poder verificar el resultado.", "razones": self._progress()}
 
     def _needs_smart(self) -> bool:
         """Escalate to the stronger model after blocks, errors or actions that changed nothing."""

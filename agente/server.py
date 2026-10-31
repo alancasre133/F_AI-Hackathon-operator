@@ -69,11 +69,22 @@ async def create_task(body: TaskIn) -> dict:
         tasks[previous]["job"].cancel()
 
     job = asyncio.create_task(_run(task_id, body, result))
-    tasks[task_id] = {"result": result, "job": job, "desktop": body.escritorio.url, "created": time.time()}
+    tasks[task_id] = {"result": result, "job": job, "desktop": body.escritorio.url, "created": time.time(), "tarea": body.tarea}
     by_desktop[body.escritorio.url] = task_id
     _trim()
     log.info("task %s created: %s", task_id, body.tarea[:120])
     return {"task_id": task_id}
+
+
+@app.get("/tasks", dependencies=[Depends(auth)])
+async def list_tasks() -> list[dict]:
+    """Debug view: recent tasks, newest first, to review an evaluation run afterwards."""
+    out = []
+    for tid, e in sorted(tasks.items(), key=lambda kv: -kv[1]["created"]):
+        r: TaskResult = e["result"]
+        out.append({"task_id": tid, "creada": e["created"], "tarea": e.get("tarea", ""), "estado": r.estado,
+                    "resumen": r.resumen, "segundos": (r.usage or {}).get("seconds_total")})
+    return out
 
 
 @app.get("/tasks/{task_id}", dependencies=[Depends(auth)])
