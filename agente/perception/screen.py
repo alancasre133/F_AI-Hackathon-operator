@@ -85,7 +85,7 @@ def detect_rects(img: np.ndarray) -> list[tuple[int, int, int, int]]:
     rects = []
     for c in contours:
         x, y, w, h = cv2.boundingRect(c)
-        if not (10 <= h <= 48 and 10 <= w <= 760):
+        if not (10 <= h <= 48 and 10 <= w <= 1100):
             continue
         if len(cv2.approxPolyDP(c, 4, True)) > 10:
             continue
@@ -183,8 +183,15 @@ def perceive(image: Image.Image, annotate: bool = True, focus: tuple[int, int, i
             kind = "checkbox"
         elif light and h >= 16 and (not inner or _left_aligned(r, [ocr[i] for i in inner])):
             kind = "input"  # white box with left-aligned or no text
-        elif inner:
+        elif inner or (fill.mean() < 170 and 14 <= h <= 40 and w >= 30):
             kind = "button"
+            if fill.mean() < 170 and hasattr(engine, "line"):
+                # Coloured button: full-page OCR garbles white captions ("Guardar" -> "CEE"); re-read it alone.
+                caption = engine.line(image, r)
+                if re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{3,}", caption):  # a real word, else keep the page OCR text
+                    used.update(inner)
+                    raw.append(dict(kind=kind, text=caption, box=r))
+                    continue
         else:
             continue  # empty decorative frame
         used.update(inner)

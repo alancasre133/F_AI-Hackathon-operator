@@ -67,12 +67,26 @@ class TesseractOCR:
         return out
 
 
+    def line(self, img: Image.Image, box: tuple[int, int, int, int]) -> str:
+        """Read one button caption: crop, make it dark-on-light, single-line mode."""
+        x1, y1, x2, y2 = box
+        if x2 - x1 > 10 and y2 - y1 > 10:
+            box = (x1 + 3, y1 + 3, x2 - 3, y2 - 3)  # stay inside the border; edges read as "|" or junk
+        gray = np.asarray(img.crop(box).convert("L"))
+        if np.median(gray) < 150:
+            gray = 255 - gray  # white caption on a coloured button
+        s = 4
+        big = Image.fromarray(gray).resize((gray.shape[1] * s, gray.shape[0] * s), Image.LANCZOS)
+        text = self.tess.image_to_string(big, lang=self.lang, config="--psm 7 --oem 1")
+        return " ".join(text.replace("|", " ").split())
+
+
 def dark_on_light(gray: np.ndarray) -> np.ndarray:
     """Invert regions with a dark background (title bars, filled buttons) so all text is dark on light."""
     import cv2
 
-    # Median, not mean: it keeps edges sharp, so text right next to a dark highlight isn't half-inverted.
-    local = cv2.medianBlur(gray, 31)
+    # Mean over a wide window; a median version read menus better but lost most text on forms (4/15 vs 14/15).
+    local = cv2.blur(gray, (41, 41))
     return np.where(local < 128, 255 - gray, gray).astype(np.uint8)
 
 

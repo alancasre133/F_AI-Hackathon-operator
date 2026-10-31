@@ -54,7 +54,7 @@ class TaskIn(BaseModel):
 @app.get("/health")
 async def health() -> dict:
     # Open on purpose: a readiness probe should not fail on auth. Task routes require the token.
-    return {"ok": True}
+    return {"ok": True, "version": os.environ.get("RAILWAY_GIT_COMMIT_SHA", "local")[:7]}
 
 
 @app.post("/tasks", dependencies=[Depends(auth)])

@@ -101,6 +101,10 @@ class Agent:
                 return {"estado": "fallida", "resumen": "Se agotó el tiempo de la tarea sin poder verificar el resultado.", "razones": self._progress()}
             decision = await self._decide(screen, intent, step)
             actions = decision.get("acciones") or []
+            declared = str(decision.get("accion_importante") or "").strip().lower()
+            clicks = [a for a in actions if isinstance(a, dict) and a.get("a") in ("click", "doble_click", "click_xy")]
+            if clicks:
+                clicks[-1]["_declarado"] = declared  # the batch's last click is the one that commits
             if not actions:
                 self._note(f"#{step} sin acciones")
                 screen = await self._see()
@@ -169,6 +173,15 @@ class Agent:
         return any(("BLOQUEADO" in h or "ERROR" in h or "sin cambios" in h) for h in recent)
 
     # ---- acting -----------------------------------------------------------
+
+    @staticmethod
+    def _text_at(screen: Screen, x: int, y: int) -> str:
+        """Caption under a raw click point, so click_xy goes through the action gate too."""
+        for e in screen.elements:
+            if e.x1 - 4 <= x <= e.x2 + 4 and e.y1 - 4 <= y <= e.y2 + 4 and e.text:
+                return e.text
+        near = [b for b in screen.ocr if abs(b.cy - y) <= 12 and b.x1 - 30 <= x <= b.x2 + 30]
+        return min(near, key=lambda b: abs(b.cx - x)).text if near else ""
 
     @staticmethod
     def _find(screen: Screen, name: str, near: tuple[int, int] | None):
@@ -251,8 +264,13 @@ class Agent:
 
         committed = False
         if a in ("click", "doble_click", "click_derecho", "click_xy"):
-            caption = el.text if el else ""
-            ok, kind, why = self.gate.check(caption)
+            if el:
+                caption = el.text
+            else:
+                caption = self._text_at(screen, int(act["x"]), int(act["y"]))
+                label = f"'{caption}'" if caption else ""
+            declared = act.get("_declarado")
+            ok, kind, why = self.gate.check(caption, declared if declared in ("guardar", "exportar", "eliminar") else None)
             if not ok:
                 return f"BLOQUEADO {a} {label}: {why}", False
             x, y = el.center if el else (int(act["x"]), int(act["y"]))
@@ -263,7 +281,7 @@ class Agent:
             else:
                 await d.click(x, y)
             self.gate.record(kind)
-            committed = kind is not None
+            committed = kind is not None and kind != "abrir"
         elif a == "menu":
             return await self._menu([str(x) for x in act.get("ruta") or []]), False
         elif a == "hover":
@@ -301,5 +319,5 @@ class Agent:
             return f"ERROR: acción desconocida {a}", False
 
         changed = await d.wait_stable()
-        desc = {k: v for k, v in act.items() if k not in ("a", "id")}
+        desc = {k: v for k, v in act.items() if k not in ("a", "id", "_declarado")}
         return f"{a} {label} {json.dumps(desc, ensure_ascii=False) if desc else ''} -> {'cambió la pantalla' if changed else 'sin cambios'}".replace("  ", " "), committed

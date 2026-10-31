@@ -11,10 +11,12 @@ def fold(s: str) -> str:
 
 
 COMMIT_WORDS = {
-    "eliminar": ["eliminar", "borrar", "anular", "desactivar", "dar de baja", "suprimir", "quitar"],
-    "exportar": ["exportar", "descargar", "generar reporte", "generar informe", "imprimir"],
-    "guardar": ["guardar", "grabar", "crear", "registrar", "actualizar", "enviar", "aplicar cambios", "agregar", "anadir", "nuevo"],
-    "confirmar": ["confirmar", "si", "aceptar"],
+    "eliminar": ["eliminar", "borrar", "anular", "desactivar", "inactivar", "dar de baja", "suprimir", "quitar", "remover",
+                 "archivar", "delete", "remove"],
+    "exportar": ["exportar", "descargar", "generar reporte", "generar informe", "generar", "imprimir", "export", "download"],
+    "guardar": ["guardar", "grabar", "salvar", "crear", "registrar", "actualizar", "enviar", "aplicar", "agregar", "anadir",
+                "procesar", "save", "submit", "nuevo", "nueva", "alta"],
+    "confirmar": ["confirmar", "si", "aceptar", "continuar", "ok"],
 }
 
 # Which kinds of data-changing clicks each task type may make.
@@ -45,14 +47,21 @@ class ActionGate:
         self.task_type = task_type if task_type in ALLOWED else "otro"
         self.used: dict[str, int] = {}
 
-    def check(self, caption: str) -> tuple[bool, str | None, str]:
-        """Return (allowed, kind, reason). 'Nuevo cliente' style openers count as guardar only for creation."""
+    def check(self, caption: str, declared: str | None = None) -> tuple[bool, str | None, str]:
+        """Return (allowed, kind, reason). 'Nuevo cliente' style openers count as guardar only for creation.
+
+        `declared` is what the LLM said this turn's important action is; it is the backup when OCR
+        can't read the button caption."""
         kind = commit_kind(caption)
+        if kind is None and declared in COMMIT_WORDS:
+            kind = declared
+            caption = caption or declared
         if kind is None:
             return True, None, ""
         f = fold(caption)
-        if kind == "guardar" and f.startswith("nuevo"):
-            return (self.task_type == "crear"), kind, "abrir un formulario de alta solo se permite al crear"
+        if kind == "guardar" and (f.startswith(("nuevo", "nueva", "alta", "+")) or (f.startswith("crear ") and len(f.split()) > 1)):
+            # Opening a blank form changes nothing; tracked apart so it never counts as a save.
+            return (self.task_type == "crear"), "abrir", "abrir un formulario de alta solo se permite al crear"
         if kind == "confirmar" and f in ("aceptar", "ok") and not self.used:
             return True, None, ""  # closing an info/error dialog changes nothing
         if kind not in ALLOWED[self.task_type]:
@@ -64,6 +73,14 @@ class ActionGate:
     def record(self, kind: str | None) -> None:
         if kind:
             self.used[kind] = self.used.get(kind, 0) + 1
+
+    def missing_effect(self) -> str | None:
+        """A create/export task can't be 'terminada' if its data-changing click never happened."""
+        if self.task_type == "crear" and not self.used.get("guardar"):
+            return "no se guardó ningún registro nuevo"
+        if self.task_type == "exportar" and not self.used.get("exportar"):
+            return "no se exportó ningún reporte"
+        return None
 
 
 # ---- accumulated table rows -------------------------------------------------

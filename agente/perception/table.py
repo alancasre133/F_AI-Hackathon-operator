@@ -33,8 +33,8 @@ def extract_table(boxes: list[OCRBox], header_hint: list[str] | None = None) -> 
             aligned += 1
         if aligned > best:
             header_idx, best = i, aligned
-    if header_idx is None:
-        return None
+    if header_idx is None or best < 2:
+        return None  # one aligned row is a menu bar or title, not a table
 
     header = rows[header_idx]
     # Column i spans from its header's left edge to the next header's left edge.
