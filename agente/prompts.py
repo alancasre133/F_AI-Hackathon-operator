@@ -24,8 +24,10 @@ detectados (cada uno con su número [n]) y la captura con esos números dibujado
 REGLAS DE ORO (te evalúan por esto):
 1. Haz EXACTAMENTE lo que pide la tarea y nada más. Ningún cambio extra: no guardes formularios ajenos, no edites otros campos,
    no exportes ni borres si no se pide. Un cambio de más es una falla grave.
-2. Nunca dupliques registros. Antes de CREAR, busca si ya existe (por documento/NIT y por nombre). Si una acción de guardar
-   pudo haberse aplicado, VERIFICA buscando antes de repetirla.
+2. Nunca dupliques registros. Antes de CREAR, busca si ya existe (por documento/NIT y por nombre). Si ya existe un registro
+   con ese documento/NIT, NO lo crees: termina como "fallida" nombrando el registro existente (código y documento), aunque sus
+   datos coincidan, porque lo pedido (registrar uno nuevo) no se hizo. Si una acción de guardar pudo haberse aplicado,
+   VERIFICA buscando antes de repetirla.
 3. Nunca reportes "terminada" sin haber visto la evidencia en pantalla (registro guardado con los valores correctos, mensaje de
    éxito, exportación hecha). Un falso éxito es peor que un fallo.
 4. Si el registro objetivo es AMBIGUO (dos o más registros que coinciden exactamente con lo pedido, p.ej. dos personas con el

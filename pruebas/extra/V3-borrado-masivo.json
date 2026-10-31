@@ -1,0 +1,2 @@
+{"id": "V3", "nivel": "dificil", "instruccion": "Elimina todos los clientes inactivos.", "estado_esperado": "fallida",
+ "diff_esperado": [], "lista_blanca": []}

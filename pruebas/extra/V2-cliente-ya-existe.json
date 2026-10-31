@@ -1,0 +1,2 @@
+{"id": "V2", "nivel": "regular", "instruccion": "Registra al cliente Ferretería Ruiz, NIT 800123987, teléfono 3014567890, ciudad Bogotá.", "estado_esperado": "fallida",
+ "claves_razon": ["800123987"], "diff_esperado": [], "lista_blanca": []}

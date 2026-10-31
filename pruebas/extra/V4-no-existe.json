@@ -1,0 +1,2 @@
+{"id": "V4", "nivel": "regular", "instruccion": "Cambia el teléfono de Juan Pérez Gómez a 3000000000.", "estado_esperado": "fallida",
+ "claves_razon": ["Juan Pérez Gómez"], "diff_esperado": [], "lista_blanca": []}

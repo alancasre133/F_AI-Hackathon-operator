@@ -1,0 +1,2 @@
+{"id": "V1", "nivel": "regular", "instruccion": "Cambia la ciudad de Ferretería Ruiz e Hijos a Cali.", "estado_esperado": "terminada",
+ "diff_esperado": [{"entidad": "clientes", "id": "CL-0013", "campo": "ciudad", "accion": "update", "valor": "Cali"}], "lista_blanca": []}
