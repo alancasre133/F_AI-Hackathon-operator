@@ -1,0 +1,10 @@
+websockets==15.0.1
+pycryptodome==3.23.0
+numpy==2.3.3
+pillow==11.3.0
+httpx==0.28.1
+python-dotenv==1.1.1
+opencv-python-headless==5.0.0.93
+pytesseract==0.3.13
+fastapi==0.120.4
+uvicorn==0.38.0

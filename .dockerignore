@@ -1,0 +1,7 @@
+.venv
+.env
+shots
+data
+__pycache__
+*.pyc
+.git
